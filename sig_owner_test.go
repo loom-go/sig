@@ -3,6 +3,9 @@ package sig
 import (
 	"errors"
 	"fmt"
+	"runtime"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -189,5 +192,45 @@ func TestOwner(t *testing.T) {
 		count.Write(1)
 
 		assert.Equal(t, []int{0}, log)
+	})
+
+	t.Run("run and dispose race", func(t *testing.T) {
+		if runtime.GOARCH == "wasm" {
+			t.Skip()
+		}
+
+		o := NewOwner()
+
+		const iterations = 1000
+		var wg sync.WaitGroup
+		var done atomic.Bool
+
+		cleanups := 0
+
+		wg.Go(func() {
+			for {
+				o.Dispose() // dispose the child
+
+				if done.Load() {
+					return
+				}
+			}
+		})
+
+		wg.Go(func() {
+			for range iterations {
+				o.Run(func() error {
+					// add a new child
+					NewOwner().OnCleanup(func() { cleanups++ })
+					return nil
+				})
+			}
+
+			done.Store(true)
+		})
+
+		wg.Wait()
+
+		assert.Equal(t, iterations, cleanups, "all child owners should be disposed")
 	})
 }

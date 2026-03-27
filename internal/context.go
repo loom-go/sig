@@ -16,7 +16,7 @@ func (c *Context) Value() any {
 	owner := GetRuntime().CurrentOwner()
 
 	for o := owner; o != nil; o = o.parent {
-		if val, ok := o.context[c.id]; ok {
+		if val, ok := o.getContext(c.id); ok {
 			return val
 		}
 	}
@@ -28,6 +28,6 @@ func (c *Context) Set(value any) {
 	owner := GetRuntime().CurrentOwner()
 
 	if owner != nil {
-		owner.context[c.id] = value
+		owner.setContext(c.id, value)
 	}
 }
